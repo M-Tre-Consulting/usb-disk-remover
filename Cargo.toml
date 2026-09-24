@@ -1,6 +1,28 @@
-[workspace]
-members = ["src-tauri"]
-resolver = "2"
+[package]
+name = "usb-disk-remover"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+slint = { version = "1.18", features = ["system-tray", "raw-window-handle-06"] }
+raw-window-handle = "0.6"
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+    "Win32_System_LibraryLoader",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Devices_Properties",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
+    "Win32_Security",
+    "Win32_Graphics_Dwm",
+] }
+
+[build-dependencies]
+slint-build = "1.18"
+winres = "0.1"
 
 [profile.release]
 strip = true

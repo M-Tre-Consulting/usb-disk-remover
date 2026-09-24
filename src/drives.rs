@@ -27,7 +27,7 @@ const DRIVE_REMOVABLE: u32 = 2;
 const DRIVE_FIXED: u32 = 3;
 
 /// The type of bus a removable device is connected through.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BusType {
     Usb,
     Firewire,
@@ -35,7 +35,7 @@ pub enum BusType {
 }
 
 /// A single removable drive visible to the system.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub struct RemovableDrive {
     /// Drive letter + backslash, e.g. "E:\"
     pub mount_point: String,
@@ -48,6 +48,7 @@ pub struct RemovableDrive {
     /// Connection bus type
     pub bus_type: BusType,
     /// Whether this device is a card reader (set by user config or detection)
+    #[allow(dead_code)]
     pub is_card_reader: bool,
 }
 
@@ -209,12 +210,15 @@ fn query_device_properties(drive_letter: &str) -> Option<DeviceProperties> {
         product_string = unsafe { std::ffi::CStr::from_ptr(ptr) }.to_string_lossy().trim().to_string();
     }
 
+    #[allow(non_upper_case_globals)]
+    let bus_type = match device_descriptor.BusType {
+        BusTypeUsb => BusType::Usb,
+        BusType1394 => BusType::Firewire,
+        _ => BusType::Unknown,
+    };
+
     let dev_props = DeviceProperties {
-        bus_type: match device_descriptor.BusType {
-            BusTypeUsb => BusType::Usb,
-            BusType1394 => BusType::Firewire,
-            _ => BusType::Unknown,
-        },
+        bus_type,
         vendor: vendor_string,
         product: product_string,
     };
