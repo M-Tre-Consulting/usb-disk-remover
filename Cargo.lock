@@ -4650,9 +4650,11 @@ dependencies = [
 
 [[package]]
 name = "usb-disk-remover"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "raw-window-handle",
+ "serde",
+ "serde_json",
  "slint",
  "slint-build",
  "windows 0.61.3",
