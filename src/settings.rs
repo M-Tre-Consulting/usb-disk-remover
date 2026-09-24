@@ -15,6 +15,12 @@ pub struct AppSettings {
     pub start_with_windows: bool,
     pub start_minimized: bool,
     pub close_to_tray: bool,
+    #[serde(default = "default_language")]
+    pub language: String,
+}
+
+fn default_language() -> String {
+    "en".to_string()
 }
 
 impl Default for AppSettings {
@@ -23,6 +29,7 @@ impl Default for AppSettings {
             start_with_windows: false,
             start_minimized: false,
             close_to_tray: true,
+            language: default_language(),
         }
     }
 }

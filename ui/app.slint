@@ -8,9 +8,46 @@ export struct DriveItem {
     bus_type: string,
 }
 
+export struct I18nStrings {
+    settings_btn: string,
+    about_btn: string,
+    refresh_btn: string,
+    scanning: string,
+    no_drives_title: string,
+    no_drives_desc: string,
+    scan_for_drives: string,
+    unlabeled_volume: string,
+    storage_device: string,
+    safely_remove: string,
+    removing: string,
+    ready: string,
+    settings_title: string,
+    settings_desc: string,
+    language_label: string,
+    autostart_title: string,
+    autostart_desc: string,
+    start_minimized_title: string,
+    start_minimized_desc: string,
+    close_to_tray_title: string,
+    close_to_tray_desc: string,
+    save_btn: string,
+    close_btn: string,
+    about_desc: string,
+    about_ref: string,
+    tray_open: string,
+    tray_settings: string,
+    tray_about: string,
+    tray_quit: string,
+}
+
 export component AppTray inherits SystemTrayIcon {
     icon: @image-url("../icons/tray.png");
     tooltip: "USB Disk Remover";
+
+    in property <string> title_open: "Open USB Disk Remover";
+    in property <string> title_settings: "Settings...";
+    in property <string> title_about: "About...";
+    in property <string> title_quit: "Quit";
 
     callback toggle_window();
     callback show_settings();
@@ -21,19 +58,19 @@ export component AppTray inherits SystemTrayIcon {
 
     Menu {
         MenuItem {
-            title: "Apri USB Disk Remover";
+            title: root.title_open;
             activated => { toggle_window(); }
         }
         MenuItem {
-            title: "Impostazioni...";
+            title: root.title_settings;
             activated => { show_settings(); }
         }
         MenuItem {
-            title: "Informazioni...";
+            title: root.title_about;
             activated => { show_about(); }
         }
         MenuItem {
-            title: "Esci";
+            title: root.title_quit;
             activated => { quit(); }
         }
     }
@@ -45,7 +82,7 @@ component SettingCard inherits Rectangle {
     in property <string> description;
     in-out property <bool> checked;
 
-    height: 62px;
+    height: 60px;
     border-radius: 8px;
     background: is_dark ? #222222 : #f8f8f8;
     border-width: 1px;
@@ -93,6 +130,8 @@ component DriveCard inherits Rectangle {
     in property <DriveItem> drive;
     in property <bool> is_selected: false;
     in property <bool> is_dark: false;
+    in property <string> fallback_label: "Unlabeled volume";
+    in property <string> fallback_device: "Storage device";
 
     callback selected();
     callback double_clicked();
@@ -171,7 +210,7 @@ component DriveCard inherits Rectangle {
                 spacing: 3px;
 
                 Text {
-                    text: root.drive.label != "" ? root.drive.label : "Unità senza etichetta";
+                    text: root.drive.label != "" ? root.drive.label : root.fallback_label;
                     font-size: 14px;
                     font-weight: 600;
                     font-italic: root.drive.label == "";
@@ -188,7 +227,7 @@ component DriveCard inherits Rectangle {
                     Text {
                         text: (root.drive.vendor != "" || root.drive.product != "")
                             ? (root.drive.vendor + " " + root.drive.product)
-                            : "Dispositivo di archiviazione";
+                            : root.fallback_device;
                         font-size: 11px;
                         color: is_dark ? #9d9d9d : #6e6e6e;
                         overflow: elide;
@@ -248,20 +287,26 @@ component DriveCard inherits Rectangle {
 export component MainWindow inherits Window {
     title: "USB Disk Remover";
     icon: @image-url("../icons/icon.png");
-    min-width: 520px;
+    min-width: 540px;
     min-height: 380px;
-    preferred-width: 620px;
-    preferred-height: 440px;
+    preferred-width: 630px;
+    preferred-height: 450px;
 
+    in-out property <DriveItem> sample;
     in-out property <[DriveItem]> drives: [];
     in-out property <int> selected_index: -1;
     in-out property <bool> is_loading: false;
     in-out property <bool> is_ejecting: false;
-    in-out property <string> status_text: "Pronto";
+    in-out property <string> status_text: "";
     in-out property <string> status_kind: "idle"; // "idle" | "ok" | "error"
     in-out property <string> app_version: "1.0.0";
     in-out property <bool> show_about: false;
     in-out property <bool> show_settings: false;
+
+    // Internationalization strings and selection
+    in-out property <I18nStrings> t;
+    in-out property <int> selected_language_index: 0;
+    in-out property <[string]> available_languages: ["English", "Italiano", "Deutsch", "Français", "العربية", "Русский"];
 
     // Settings properties
     in-out property <bool> setting_start_with_windows: false;
@@ -275,6 +320,7 @@ export component MainWindow inherits Window {
     callback toggle_about();
     callback toggle_settings();
     callback save_settings(bool, bool, bool);
+    callback select_language(int);
 
     property <bool> is_dark: Palette.color-scheme == ColorScheme.dark;
 
@@ -333,17 +379,17 @@ export component MainWindow inherits Window {
                 y: (parent.height - self.height) / 2;
 
                 Button {
-                    text: "Impostazioni";
+                    text: root.t.settings_btn;
                     clicked => { root.toggle_settings(); }
                 }
 
                 Button {
-                    text: "Info";
+                    text: root.t.about_btn;
                     clicked => { root.toggle_about(); }
                 }
 
                 Button {
-                    text: root.is_loading ? "Scansione..." : "Aggiorna";
+                    text: root.is_loading ? root.t.scanning : root.t.refresh_btn;
                     enabled: !root.is_loading && !root.is_ejecting;
                     clicked => { root.refresh_drives(); }
                 }
@@ -371,7 +417,7 @@ export component MainWindow inherits Window {
                 }
 
                 Text {
-                    text: "Nessuna unità rimovibile rilevata";
+                    text: root.t.no_drives_title;
                     font-size: 15px;
                     font-weight: 600;
                     color: is_dark ? #cccccc : #333333;
@@ -379,7 +425,7 @@ export component MainWindow inherits Window {
                 }
 
                 Text {
-                    text: "Collega una chiavetta USB o un disco esterno per gestirlo.";
+                    text: root.t.no_drives_desc;
                     font-size: 12px;
                     color: is_dark ? #888888 : #777777;
                     horizontal-alignment: center;
@@ -389,7 +435,7 @@ export component MainWindow inherits Window {
                     alignment: center;
                     padding-top: 6px;
                     Button {
-                        text: "Cerca unità";
+                        text: root.t.scan_for_drives;
                         clicked => { root.refresh_drives(); }
                     }
                 }
@@ -407,7 +453,7 @@ export component MainWindow inherits Window {
                 }
 
                 Text {
-                    text: "Rilevamento unità in corso...";
+                    text: root.t.scanning;
                     font-size: 13px;
                     color: is_dark ? #999999 : #666666;
                     horizontal-alignment: center;
@@ -425,6 +471,8 @@ export component MainWindow inherits Window {
                         drive: drive;
                         is_selected: root.selected_index == index;
                         is_dark: root.is_dark;
+                        fallback_label: root.t.unlabeled_volume;
+                        fallback_device: root.t.storage_device;
 
                         selected => {
                             root.select_drive(index);
@@ -484,7 +532,7 @@ export component MainWindow inherits Window {
                 y: (parent.height - self.height) / 2;
 
                 Button {
-                    text: root.is_ejecting ? "Rimozione in corso..." : "Rimuovi in sicurezza";
+                    text: root.is_ejecting ? root.t.removing : root.t.safely_remove;
                     primary: true;
                     enabled: root.selected_index >= 0 && !root.is_ejecting && !root.is_loading;
                     clicked => { root.eject_selected(); }
@@ -506,8 +554,8 @@ export component MainWindow inherits Window {
         }
 
         Rectangle {
-            width: 480px;
-            height: 380px;
+            width: 500px;
+            height: 460px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: 12px;
@@ -520,21 +568,21 @@ export component MainWindow inherits Window {
             TouchArea {}
 
             VerticalLayout {
-                padding: 24px;
-                spacing: 16px;
+                padding: 22px;
+                spacing: 14px;
                 alignment: space-between;
 
                 // Header
                 VerticalLayout {
                     spacing: 4px;
                     Text {
-                        text: "Impostazioni";
+                        text: root.t.settings_title;
                         font-size: 18px;
                         font-weight: 700;
                         color: is_dark ? #ffffff : #111111;
                     }
                     Text {
-                        text: "Configura il comportamento di avvio e chiusura";
+                        text: root.t.settings_desc;
                         font-size: 12px;
                         color: is_dark ? #aaaaaa : #666666;
                     }
@@ -542,26 +590,93 @@ export component MainWindow inherits Window {
 
                 // Settings Cards
                 VerticalLayout {
-                    spacing: 10px;
+                    spacing: 8px;
+
+                    // Language Selector
+                    Rectangle {
+                        height: 76px;
+                        border-radius: 8px;
+                        background: is_dark ? #222222 : #f8f8f8;
+                        border-width: 1px;
+                        border-color: is_dark ? #333333 : #e6e6e6;
+
+                        VerticalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            padding-top: 8px;
+                            padding-bottom: 8px;
+                            spacing: 6px;
+                            alignment: space-between;
+
+                            Text {
+                                text: root.t.language_label;
+                                font-size: 13px;
+                                font-weight: 600;
+                                color: is_dark ? #ffffff : #1a1a1a;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: space-between;
+
+                                for lang[idx] in root.available_languages : Rectangle {
+                                    border-radius: 4px;
+                                    background: root.selected_language_index == idx 
+                                        ? (is_dark ? #4cc2ff : #0067c0)
+                                        : (lang_touch.has_hover 
+                                            ? (is_dark ? #ffffff18 : #00000010)
+                                            : (is_dark ? #2e2e2e : #ebebeb));
+                                    border-width: 1px;
+                                    border-color: root.selected_language_index == idx
+                                        ? (is_dark ? #4cc2ff : #0067c0)
+                                        : (is_dark ? #3d3d3d : #d6d6d6);
+
+                                    lang_touch := TouchArea {
+                                        clicked => {
+                                            root.selected_language_index = idx;
+                                            root.select_language(idx);
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 8px;
+                                        padding-right: 8px;
+                                        padding-top: 4px;
+                                        padding-bottom: 4px;
+                                        Text {
+                                            text: lang;
+                                            font-size: 11px;
+                                            font-weight: root.selected_language_index == idx ? 700 : 500;
+                                            color: root.selected_language_index == idx 
+                                                ? (is_dark ? #000000 : #ffffff)
+                                                : (is_dark ? #dddddd : #333333);
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     SettingCard {
                         is_dark: root.is_dark;
-                        title: "Avvia automaticamente con Windows";
-                        description: "Esegue il programma all'avvio del sistema (Registro Run)";
+                        title: root.t.autostart_title;
+                        description: root.t.autostart_desc;
                         checked <=> root.setting_start_with_windows;
                     }
 
                     SettingCard {
                         is_dark: root.is_dark;
-                        title: "Avvia ridotto a icona nella tray";
-                        description: "All'avvio non mostra la finestra, resta nell'area di notifica";
+                        title: root.t.start_minimized_title;
+                        description: root.t.start_minimized_desc;
                         checked <=> root.setting_start_minimized;
                     }
 
                     SettingCard {
                         is_dark: root.is_dark;
-                        title: "Riduci nella tray alla chiusura (✕)";
-                        description: "Il pulsante ✕ nasconde l'applicazione invece di chiuderla";
+                        title: root.t.close_to_tray_title;
+                        description: root.t.close_to_tray_desc;
                         checked <=> root.setting_close_to_tray;
                     }
                 }
@@ -572,7 +687,7 @@ export component MainWindow inherits Window {
                     spacing: 8px;
 
                     Button {
-                        text: "Salva";
+                        text: root.t.save_btn;
                         primary: true;
                         clicked => {
                             root.save_settings(
@@ -585,7 +700,7 @@ export component MainWindow inherits Window {
                     }
 
                     Button {
-                        text: "Chiudi";
+                        text: root.t.close_btn;
                         clicked => { root.toggle_settings(); }
                     }
                 }
@@ -606,8 +721,8 @@ export component MainWindow inherits Window {
         }
 
         Rectangle {
-            width: 400px;
-            height: 290px;
+            width: 420px;
+            height: 300px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: 12px;
@@ -644,7 +759,7 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Versione " + root.app_version + " · 100% Rust & Slint";
+                        text: "Version " + root.app_version + " · 100% Rust & Slint";
                         font-size: 12px;
                         color: is_dark ? #aaaaaa : #666666;
                         horizontal-alignment: center;
@@ -656,7 +771,7 @@ export component MainWindow inherits Window {
                     alignment: center;
 
                     Text {
-                        text: "Utility nativa per Windows per espellere in sicurezza le unità USB e Firewire.";
+                        text: root.t.about_desc;
                         font-size: 11px;
                         color: is_dark ? #cccccc : #444444;
                         horizontal-alignment: center;
@@ -664,7 +779,7 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Porting in Rust di USB Disk Ejector di QuickAndEasySoftware.";
+                        text: root.t.about_ref;
                         font-size: 11px;
                         color: is_dark ? #888888 : #777777;
                         horizontal-alignment: center;
@@ -672,7 +787,7 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Licenza MIT";
+                        text: "MIT License";
                         font-size: 10px;
                         color: is_dark ? #666666 : #999999;
                         horizontal-alignment: center;
@@ -682,7 +797,7 @@ export component MainWindow inherits Window {
                 HorizontalLayout {
                     alignment: center;
                     Button {
-                        text: "Chiudi";
+                        text: root.t.close_btn;
                         clicked => { root.toggle_about(); }
                     }
                 }

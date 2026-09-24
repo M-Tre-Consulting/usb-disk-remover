@@ -2,11 +2,13 @@
 
 mod drives;
 mod eject;
+mod i18n;
 mod settings;
 mod utils;
 
 use drives::{enumerate_drives, BusType, RemovableDrive};
 use eject::eject_drive;
+use i18n::Language;
 use settings::{load_settings, save_settings, AppSettings};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 use std::rc::Rc;
@@ -48,7 +50,7 @@ fn drive_to_item(drive: &RemovableDrive) -> DriveItem {
     let bus_str = match drive.bus_type {
         BusType::Usb => "USB",
         BusType::Firewire => "1394",
-        BusType::Unknown => "Altro",
+        BusType::Unknown => "Other",
     };
 
     DriveItem {
@@ -60,24 +62,31 @@ fn drive_to_item(drive: &RemovableDrive) -> DriveItem {
     }
 }
 
-fn load_drives_async(win_weak: slint::Weak<MainWindow>, is_busy: Arc<AtomicBool>) {
+fn load_drives_async(
+    win_weak: slint::Weak<MainWindow>,
+    is_busy: Arc<AtomicBool>,
+    current_lang: Arc<Mutex<Language>>,
+) {
     if is_busy.swap(true, Ordering::SeqCst) {
         return;
     }
 
+    let lang = current_lang.lock().map(|l| *l).unwrap_or_default();
     if let Some(win) = win_weak.upgrade() {
         win.set_is_loading(true);
-        win.set_status_text("Scansione unità in corso...".into());
+        win.set_status_text(lang.get_strings().scanning);
         win.set_status_kind("idle".into());
     }
 
     let is_busy_clone = Arc::clone(&is_busy);
+    let lang_clone = Arc::clone(&current_lang);
     std::thread::spawn(move || {
         let drives = enumerate_drives();
         let items: Vec<DriveItem> = drives.iter().map(drive_to_item).collect();
         let count = items.len();
 
         let _ = slint::invoke_from_event_loop(move || {
+            let active_lang = lang_clone.lock().map(|l| *l).unwrap_or_default();
             if let Some(win) = win_weak.upgrade() {
                 let model = Rc::new(VecModel::from(items));
                 win.set_drives(ModelRc::from(model));
@@ -85,14 +94,10 @@ fn load_drives_async(win_weak: slint::Weak<MainWindow>, is_busy: Arc<AtomicBool>
                 win.set_is_loading(false);
 
                 if count == 0 {
-                    win.set_status_text("Nessuna unità rimovibile rilevata.".into());
+                    win.set_status_text(active_lang.get_strings().no_drives_title);
                     win.set_status_kind("idle".into());
                 } else {
-                    let msg = if count == 1 {
-                        "1 unità rilevata.".to_string()
-                    } else {
-                        format!("{} unità rilevate.", count)
-                    };
+                    let msg = active_lang.drives_detected(count);
                     win.set_status_text(msg.into());
                     win.set_status_kind("idle".into());
                 }
@@ -106,31 +111,35 @@ fn eject_drive_async(
     mount_point: String,
     win_weak: slint::Weak<MainWindow>,
     is_busy: Arc<AtomicBool>,
+    current_lang: Arc<Mutex<Language>>,
 ) {
     if is_busy.swap(true, Ordering::SeqCst) {
         return;
     }
 
+    let lang = current_lang.lock().map(|l| *l).unwrap_or_default();
     if let Some(win) = win_weak.upgrade() {
         win.set_is_ejecting(true);
-        let msg = format!("Rimozione sicura di {} in corso...", mount_point);
+        let msg = lang.safely_removing(&mount_point);
         win.set_status_text(msg.into());
         win.set_status_kind("idle".into());
     }
 
     let is_busy_clone = Arc::clone(&is_busy);
+    let lang_clone = Arc::clone(&current_lang);
     std::thread::spawn(move || {
         let all_drives = enumerate_drives();
         let target = all_drives.iter().find(|d| {
             d.mount_point.trim_end_matches('\\') == mount_point.trim_end_matches('\\')
         });
 
+        let active_lang = lang_clone.lock().map(|l| *l).unwrap_or_default();
         let (success, message) = match target {
             Some(drive) => match eject_drive(drive) {
-                Ok(_) => (true, format!("{} rimossa con successo.", mount_point)),
-                Err(err) => (false, format!("Errore espulsione {}: {:?}", mount_point, err)),
+                Ok(_) => (true, active_lang.safely_removed(&mount_point)),
+                Err(err) => (false, active_lang.eject_error(&mount_point, &format!("{err:?}"))),
             },
-            None => (false, format!("Unità {} non trovata.", mount_point)),
+            None => (false, active_lang.drive_not_found(&mount_point)),
         };
 
         let refreshed = enumerate_drives();
@@ -150,6 +159,13 @@ fn eject_drive_async(
     });
 }
 
+fn update_tray_strings(tray: &AppTray, strings: &I18nStrings) {
+    tray.set_title_open(strings.tray_open.clone());
+    tray.set_title_settings(strings.tray_settings.clone());
+    tray.set_title_about(strings.tray_about.clone());
+    tray.set_title_quit(strings.tray_quit.clone());
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let main_window = MainWindow::new()?;
     let tray = AppTray::new()?;
@@ -161,11 +177,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load persisted settings
     let initial_settings = load_settings();
+    let initial_lang = Language::from_code(&initial_settings.language);
+    let initial_strings = initial_lang.get_strings();
+
+    main_window.set_t(initial_strings.clone());
+    main_window.set_selected_language_index(initial_lang.to_index() as i32);
+    main_window.set_status_text(initial_strings.ready.clone());
+
+    update_tray_strings(&tray, &initial_strings);
+
     main_window.set_setting_start_with_windows(initial_settings.start_with_windows);
     main_window.set_setting_start_minimized(initial_settings.start_minimized);
     main_window.set_setting_close_to_tray(initial_settings.close_to_tray);
 
     let settings_state = Arc::new(Mutex::new(initial_settings));
+    let current_lang = Arc::new(Mutex::new(initial_lang));
 
     // Handle close button (X) according to close_to_tray setting
     let settings_close = Arc::clone(&settings_state);
@@ -219,11 +245,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = slint::quit_event_loop();
     });
 
+    // ── Language Selector Callback ───────────────────────────────────────────
+    let win_weak_lang = main_window.as_weak();
+    let tray_weak = tray.as_weak();
+    let current_lang_select = Arc::clone(&current_lang);
+    let settings_select = Arc::clone(&settings_state);
+    main_window.on_select_language(move |idx| {
+        let new_lang = Language::from_index(idx as usize);
+        if let Ok(mut l) = current_lang_select.lock() {
+            *l = new_lang;
+        }
+        if let Ok(mut s) = settings_select.lock() {
+            s.language = new_lang.to_code().to_string();
+            settings::save_settings(&s);
+        }
+        let strings = new_lang.get_strings();
+        if let Some(win) = win_weak_lang.upgrade() {
+            win.set_t(strings.clone());
+            win.set_selected_language_index(idx);
+        }
+        if let Some(tray) = tray_weak.upgrade() {
+            update_tray_strings(&tray, &strings);
+        }
+    });
+
     // ── Window Callbacks ──────────────────────────────────────────────────────
     let win_weak = main_window.as_weak();
     let is_busy_refresh = Arc::clone(&is_busy);
+    let current_lang_refresh = Arc::clone(&current_lang);
     main_window.on_refresh_drives(move || {
-        load_drives_async(win_weak.clone(), Arc::clone(&is_busy_refresh));
+        load_drives_async(
+            win_weak.clone(),
+            Arc::clone(&is_busy_refresh),
+            Arc::clone(&current_lang_refresh),
+        );
     });
 
     let win_weak = main_window.as_weak();
@@ -235,16 +290,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let win_weak = main_window.as_weak();
     let is_busy_eject = Arc::clone(&is_busy);
+    let current_lang_eject = Arc::clone(&current_lang);
     main_window.on_eject_drive(move |mount_point| {
         eject_drive_async(
             mount_point.to_string(),
             win_weak.clone(),
             Arc::clone(&is_busy_eject),
+            Arc::clone(&current_lang_eject),
         );
     });
 
     let win_weak = main_window.as_weak();
     let is_busy_sel = Arc::clone(&is_busy);
+    let current_lang_sel = Arc::clone(&current_lang);
     main_window.on_eject_selected(move || {
         if let Some(win) = win_weak.upgrade() {
             let idx = win.get_selected_index();
@@ -255,6 +313,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         item.mount_point.to_string(),
                         win_weak.clone(),
                         Arc::clone(&is_busy_sel),
+                        Arc::clone(&current_lang_sel),
                     );
                 }
             }
@@ -284,11 +343,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let settings_save = Arc::clone(&settings_state);
+    let current_lang_save = Arc::clone(&current_lang);
     main_window.on_save_settings(move |start_win, start_min, close_tray| {
+        let lang_code = current_lang_save
+            .lock()
+            .map(|l| l.to_code().to_string())
+            .unwrap_or_else(|_| "en".to_string());
+
         let new_settings = AppSettings {
             start_with_windows: start_win,
             start_minimized: start_min,
             close_to_tray: close_tray,
+            language: lang_code,
         };
 
         if let Ok(mut s) = settings_save.lock() {
@@ -299,7 +365,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Initial drive scan
-    load_drives_async(main_window.as_weak(), Arc::clone(&is_busy));
+    load_drives_async(
+        main_window.as_weak(),
+        Arc::clone(&is_busy),
+        Arc::clone(&current_lang),
+    );
 
     // Check if launched with --minimized flag
     let start_minimized = std::env::args().any(|arg| arg == "--minimized");
