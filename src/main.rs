@@ -2,14 +2,16 @@
 
 mod drives;
 mod eject;
+mod settings;
 mod utils;
 
 use drives::{enumerate_drives, BusType, RemovableDrive};
 use eject::eject_drive;
+use settings::{load_settings, save_settings, AppSettings};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 slint::include_modules!();
 
@@ -154,10 +156,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     apply_windows_styling(main_window.window());
 
-    // Intercept window close button (X) to hide to tray instead of terminating
-    main_window
-        .window()
-        .on_close_requested(|| slint::CloseRequestResponse::HideWindow);
+    // Set application version from Cargo
+    main_window.set_app_version(env!("CARGO_PKG_VERSION").into());
+
+    // Load persisted settings
+    let initial_settings = load_settings();
+    main_window.set_setting_start_with_windows(initial_settings.start_with_windows);
+    main_window.set_setting_start_minimized(initial_settings.start_minimized);
+    main_window.set_setting_close_to_tray(initial_settings.close_to_tray);
+
+    let settings_state = Arc::new(Mutex::new(initial_settings));
+
+    // Handle close button (X) according to close_to_tray setting
+    let settings_close = Arc::clone(&settings_state);
+    main_window.window().on_close_requested(move || {
+        let close_to_tray = settings_close
+            .lock()
+            .map(|s| s.close_to_tray)
+            .unwrap_or(true);
+
+        if close_to_tray {
+            slint::CloseRequestResponse::HideWindow
+        } else {
+            let _ = slint::quit_event_loop();
+            slint::CloseRequestResponse::HideWindow
+        }
+    });
 
     let is_busy = Arc::new(AtomicBool::new(false));
 
@@ -173,10 +197,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let win_weak_tray_settings = main_window.as_weak();
+    tray.on_show_settings(move || {
+        if let Some(win) = win_weak_tray_settings.upgrade() {
+            win.set_show_settings(true);
+            win.set_show_about(false);
+            let _ = win.window().show();
+        }
+    });
+
     let win_weak_about = main_window.as_weak();
     tray.on_show_about(move || {
         if let Some(win) = win_weak_about.upgrade() {
             win.set_show_about(true);
+            win.set_show_settings(false);
             let _ = win.window().show();
         }
     });
@@ -232,13 +266,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(win) = win_weak.upgrade() {
             let current = win.get_show_about();
             win.set_show_about(!current);
+            if !current {
+                win.set_show_settings(false);
+            }
         }
+    });
+
+    let win_weak = main_window.as_weak();
+    main_window.on_toggle_settings(move || {
+        if let Some(win) = win_weak.upgrade() {
+            let current = win.get_show_settings();
+            win.set_show_settings(!current);
+            if !current {
+                win.set_show_about(false);
+            }
+        }
+    });
+
+    let settings_save = Arc::clone(&settings_state);
+    main_window.on_save_settings(move |start_win, start_min, close_tray| {
+        let new_settings = AppSettings {
+            start_with_windows: start_win,
+            start_minimized: start_min,
+            close_to_tray: close_tray,
+        };
+
+        if let Ok(mut s) = settings_save.lock() {
+            *s = new_settings.clone();
+        }
+
+        save_settings(&new_settings);
     });
 
     // Initial drive scan
     load_drives_async(main_window.as_weak(), Arc::clone(&is_busy));
 
-    main_window.show()?;
+    // Check if launched with --minimized flag
+    let start_minimized = std::env::args().any(|arg| arg == "--minimized");
+    if !start_minimized {
+        main_window.show()?;
+    }
+
     slint::run_event_loop()?;
 
     Ok(())

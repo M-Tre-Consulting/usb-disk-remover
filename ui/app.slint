@@ -1,4 +1,4 @@
-import { Button, Spinner, ScrollView, Palette } from "std-widgets.slint";
+import { Button, CheckBox, Spinner, ScrollView, Palette } from "std-widgets.slint";
 
 export struct DriveItem {
     mount_point: string,
@@ -13,6 +13,7 @@ export component AppTray inherits SystemTrayIcon {
     tooltip: "USB Disk Remover";
 
     callback toggle_window();
+    callback show_settings();
     callback show_about();
     callback quit();
 
@@ -24,12 +25,66 @@ export component AppTray inherits SystemTrayIcon {
             activated => { toggle_window(); }
         }
         MenuItem {
+            title: "Impostazioni...";
+            activated => { show_settings(); }
+        }
+        MenuItem {
             title: "Informazioni...";
             activated => { show_about(); }
         }
         MenuItem {
             title: "Esci";
             activated => { quit(); }
+        }
+    }
+}
+
+component SettingCard inherits Rectangle {
+    in property <bool> is_dark: false;
+    in property <string> title;
+    in property <string> description;
+    in-out property <bool> checked;
+
+    height: 62px;
+    border-radius: 8px;
+    background: is_dark ? #222222 : #f8f8f8;
+    border-width: 1px;
+    border-color: is_dark ? #333333 : #e6e6e6;
+
+    TouchArea {
+        clicked => { root.checked = !root.checked; }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+
+            Text {
+                text: root.title;
+                font-size: 13px;
+                font-weight: 600;
+                color: is_dark ? #ffffff : #1a1a1a;
+            }
+
+            Text {
+                text: root.description;
+                font-size: 11px;
+                color: is_dark ? #999999 : #666666;
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            y: (parent.height - self.height) / 2;
+
+            CheckBox {
+                checked <=> root.checked;
+            }
         }
     }
 }
@@ -204,13 +259,22 @@ export component MainWindow inherits Window {
     in-out property <bool> is_ejecting: false;
     in-out property <string> status_text: "Pronto";
     in-out property <string> status_kind: "idle"; // "idle" | "ok" | "error"
+    in-out property <string> app_version: "1.0.0";
     in-out property <bool> show_about: false;
+    in-out property <bool> show_settings: false;
+
+    // Settings properties
+    in-out property <bool> setting_start_with_windows: false;
+    in-out property <bool> setting_start_minimized: false;
+    in-out property <bool> setting_close_to_tray: true;
 
     callback refresh_drives();
     callback eject_selected();
     callback eject_drive(string);
     callback select_drive(int);
     callback toggle_about();
+    callback toggle_settings();
+    callback save_settings(bool, bool, bool);
 
     property <bool> is_dark: Palette.color-scheme == ColorScheme.dark;
 
@@ -246,14 +310,14 @@ export component MainWindow inherits Window {
                 }
 
                 Rectangle {
-                    width: 44px;
+                    width: 48px;
                     height: 18px;
                     border-radius: 9px;
                     background: is_dark ? #2d2d2d : #e5e5e5;
                     y: (parent.height - self.height) / 2;
 
                     Text {
-                        text: "v0.1.0";
+                        text: "v" + root.app_version;
                         font-size: 10px;
                         font-weight: 600;
                         color: is_dark ? #aaaaaa : #666666;
@@ -269,7 +333,12 @@ export component MainWindow inherits Window {
                 y: (parent.height - self.height) / 2;
 
                 Button {
-                    text: "Informazioni";
+                    text: "Impostazioni";
+                    clicked => { root.toggle_settings(); }
+                }
+
+                Button {
+                    text: "Info";
                     clicked => { root.toggle_about(); }
                 }
 
@@ -424,6 +493,106 @@ export component MainWindow inherits Window {
         }
     }
 
+    // ── Settings Modal Dialog ─────────────────────────────────────────────
+    if root.show_settings : Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        background: #00000088;
+
+        TouchArea {
+            clicked => { root.toggle_settings(); }
+        }
+
+        Rectangle {
+            width: 480px;
+            height: 380px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 12px;
+            background: is_dark ? #282828 : #ffffff;
+            border-width: 1px;
+            border-color: is_dark ? #3d3d3d : #e0e0e0;
+            drop-shadow-blur: 24px;
+            drop-shadow-color: #00000044;
+
+            TouchArea {}
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 16px;
+                alignment: space-between;
+
+                // Header
+                VerticalLayout {
+                    spacing: 4px;
+                    Text {
+                        text: "Impostazioni";
+                        font-size: 18px;
+                        font-weight: 700;
+                        color: is_dark ? #ffffff : #111111;
+                    }
+                    Text {
+                        text: "Configura il comportamento di avvio e chiusura";
+                        font-size: 12px;
+                        color: is_dark ? #aaaaaa : #666666;
+                    }
+                }
+
+                // Settings Cards
+                VerticalLayout {
+                    spacing: 10px;
+
+                    SettingCard {
+                        is_dark: root.is_dark;
+                        title: "Avvia automaticamente con Windows";
+                        description: "Esegue il programma all'avvio del sistema (Registro Run)";
+                        checked <=> root.setting_start_with_windows;
+                    }
+
+                    SettingCard {
+                        is_dark: root.is_dark;
+                        title: "Avvia ridotto a icona nella tray";
+                        description: "All'avvio non mostra la finestra, resta nell'area di notifica";
+                        checked <=> root.setting_start_minimized;
+                    }
+
+                    SettingCard {
+                        is_dark: root.is_dark;
+                        title: "Riduci nella tray alla chiusura (✕)";
+                        description: "Il pulsante ✕ nasconde l'applicazione invece di chiuderla";
+                        checked <=> root.setting_close_to_tray;
+                    }
+                }
+
+                // Buttons
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+
+                    Button {
+                        text: "Salva";
+                        primary: true;
+                        clicked => {
+                            root.save_settings(
+                                root.setting_start_with_windows,
+                                root.setting_start_minimized,
+                                root.setting_close_to_tray
+                            );
+                            root.toggle_settings();
+                        }
+                    }
+
+                    Button {
+                        text: "Chiudi";
+                        clicked => { root.toggle_settings(); }
+                    }
+                }
+            }
+        }
+    }
+
     // ── About Modal Dialog ────────────────────────────────────────────────
     if root.show_about : Rectangle {
         x: 0;
@@ -433,7 +602,6 @@ export component MainWindow inherits Window {
         background: #00000088;
 
         about_touch := TouchArea {
-            // Click outside dialog to dismiss
             clicked => { root.toggle_about(); }
         }
 
@@ -449,7 +617,6 @@ export component MainWindow inherits Window {
             drop-shadow-blur: 24px;
             drop-shadow-color: #00000044;
 
-            // Block clicks on dialog from closing
             TouchArea {}
 
             VerticalLayout {
@@ -477,7 +644,7 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Versione 0.1.0 · 100% Rust & Slint";
+                        text: "Versione " + root.app_version + " · 100% Rust & Slint";
                         font-size: 12px;
                         color: is_dark ? #aaaaaa : #666666;
                         horizontal-alignment: center;
