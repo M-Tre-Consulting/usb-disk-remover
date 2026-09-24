@@ -10,7 +10,7 @@ A lightweight, portable Windows utility for safely ejecting removable USB and Fi
 - **Detailed Information**: Displays drive letters, volume labels, hardware vendor, and product names for all connected devices.
 - **Safe Ejection**: Locks and dismounts file system volumes via `FSCTL_LOCK_VOLUME` and `FSCTL_DISMOUNT_VOLUME`, then cleanly ejects the physical device via the Windows PnP manager (`CM_Request_Device_Eject`).
 - **Multi-Partition Support**: Handles multi-partition devices correctly by identifying and dismounting all sibling volumes before ejecting the parent device.
-- **Windows 11 Fluent UI**: Native Windows 11 look and feel with automatic Dark/Light mode support, immersive dark title bar, and Fluent styling.
+- **Adaptive Native UI (Windows 11 & Windows 10)**: Automatically adapts to your OS version at runtime: rounded Fluent design with Mica system backdrop on Windows 11 (Build >= 22000), and crisp flat design with sharp corners and classic Windows 10 blue accents on Windows 10. Automatic Dark/Light mode support on both.
 - **Ultra-Lightweight & Fast**: Zero Chromium/WebView2 overhead. Starts in <40 ms and uses ~15 MB of RAM.
 - **Internationalization (i18n)**: Fully translated into 6 languages with live switching:
   - 🇬🇧 English
