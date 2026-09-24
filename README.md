@@ -1,4 +1,4 @@
-# USB Disk Remover
+# USB Disk Remover v1.0.0
 
 A lightweight, portable Windows utility for safely ejecting removable USB and Firewire drives. Written in 100% pure Rust with a modern Windows 11 Fluent interface powered by [Slint](https://slint.dev/).
 
@@ -10,10 +10,14 @@ A lightweight, portable Windows utility for safely ejecting removable USB and Fi
 - **Detailed Information**: Displays drive letters, volume labels, hardware vendor, and product names for all connected devices.
 - **Safe Ejection**: Locks and dismounts file system volumes via `FSCTL_LOCK_VOLUME` and `FSCTL_DISMOUNT_VOLUME`, then cleanly ejects the physical device via the Windows PnP manager (`CM_Request_Device_Eject`).
 - **Multi-Partition Support**: Handles multi-partition devices correctly by identifying and dismounting all sibling volumes before ejecting the parent device.
-- **Windows 11 Fluent UI**: Native Windows 11 look and feel with automatic Dark/Light mode support, immersive title bar, and Fluent styling.
-- **Ultra-Lightweight & Fast**: Zero Chromium/WebView2 overhead. Starts instantly (<50 ms) and uses ~15 MB of RAM.
-- **System Tray Integration**: Minimizes to the notification area when closed with a quick context menu (Open, About, Quit).
-- **Portable**: Single standalone executable with no runtime dependencies or installation required.
+- **Windows 11 Fluent UI**: Native Windows 11 look and feel with automatic Dark/Light mode support, immersive dark title bar, and Fluent styling.
+- **Ultra-Lightweight & Fast**: Zero Chromium/WebView2 overhead. Starts in <40 ms and uses ~15 MB of RAM.
+- **Settings & Autostart**: In-app Settings page to toggle:
+  - Automatic startup with Windows (`HKCU\...\Run`).
+  - Start minimized directly to the System Tray (`--minimized`).
+  - Minimize to tray when clicking the close button (**✕**).
+- **System Tray Integration**: Background resident with an interactive context menu (Open, Settings, About, Quit).
+- **Portable or Installable**: Available both as a portable single `.exe` and as a clean Windows Setup installer.
 
 ---
 
@@ -24,27 +28,47 @@ A lightweight, portable Windows utility for safely ejecting removable USB and Fi
 
 ---
 
+## 📦 Installation & Download
+
+### Option 1: Windows Setup Installer
+You can generate or run the Inno Setup installer:
+```text
+target/installer/USBDiskRemover-Setup-1.0.0.exe
+```
+Features of the installer:
+- Installs to user directory without requiring administrator privileges.
+- Adds Start Menu and optional Desktop shortcuts.
+- Optional automatic startup with Windows.
+- Clean uninstaller registered in Windows Settings (*Apps & features*).
+
+### Option 2: Standalone Portable Binary
+Simply copy `usb-disk-remover.exe` anywhere (even on a USB flash drive) and launch it.
+
+---
+
 ## 🛠️ Building from Source
 
 ### Prerequisites
 
 - [Rust Toolchain](https://rustup.rs/) (edition 2024, Rust 1.92+)
 - Visual Studio C++ Build Tools (or `winget install Microsoft.VisualStudio.2022.BuildTools`)
+- *(Optional, for building the installer)* [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`)
 
-> **Note:** Unlike previous versions, Node.js, npm, Vite, and Tauri are no longer required. The project builds entirely with `cargo`.
+### Build Steps
 
-### Steps
+1. **Compile Release Binary**:
+   ```bash
+   git clone https://github.com/m4ce-w1ndu/usb-disk-remover
+   cd usb-disk-remover
+   cargo build --release
+   ```
+   The compiled standalone executable will be at `target/release/usb-disk-remover.exe`.
 
-```bash
-git clone https://github.com/m4ce-w1ndu/usb-disk-remover
-cd usb-disk-remover
-cargo build --release
-```
-
-The compiled standalone executable will be located at:
-```text
-target/release/usb-disk-remover.exe
-```
+2. **Compile Windows Installer (Optional)**:
+   ```bash
+   ISCC.exe installer/setup.iss
+   ```
+   The installer package will be output to `target/installer/USBDiskRemover-Setup-1.0.0.exe`.
 
 ---
 
@@ -53,7 +77,12 @@ target/release/usb-disk-remover.exe
 1. Launch `usb-disk-remover.exe`.
 2. All connected removable drives will appear in the card list.
 3. Select an entry and click **Rimuovi in sicurezza** (Safely Remove), or **double-click** any drive row to eject it immediately.
-4. Closing the window with the **✕** button minimizes the application to the Windows System Tray. Click the tray icon to restore the window, or right-click for the context menu.
+4. Click **Impostazioni** (Settings) in the top toolbar to configure automatic startup and tray behavior.
+5. Closing the window with the **✕** button minimizes the application to the Windows System Tray (configurable). Click the tray icon to restore the window, or right-click for the context menu.
+
+### Command-Line Arguments
+
+- `--minimized`: Starts the application resident in the system tray without displaying the main window. Used by Windows automatic startup.
 
 ---
 
@@ -70,16 +99,20 @@ target/release/usb-disk-remover.exe
 
 ```text
 usb-disk-remover/
-├── Cargo.toml          # Rust package configuration & dependencies (Slint, Windows API)
-├── build.rs            # Slint UI compiler configuration and Windows PE icon embedding
+├── Cargo.toml          # Rust package configuration (v1.0.0, Slint, Windows API, Serde)
+├── build.rs            # Slint UI compiler and Windows PE icon embedding
 ├── icons/              # Application & System Tray icons
+├── installer/
+│   └── setup.iss       # Inno Setup Windows installer script
 ├── src/
-│   ├── main.rs         # Application entry point, window management, tray & async threads
+│   ├── main.rs         # Application lifecycle, tray icon, settings & async worker threads
 │   ├── drives.rs       # Drive enumeration & bus property queries (Win32 IOCTL)
 │   ├── eject.rs        # Two-phase volume locking, dismount & PnP device ejection
+│   ├── settings.rs     # App settings persistence and Windows autostart Registry integration
 │   └── utils.rs        # String & bit manipulation helpers
-└── ui/
-    └── app.slint       # Windows 11 Fluent UI definition & System Tray component
+├── ui/
+│   └── app.slint       # Windows 11 Fluent UI, Settings modal & System Tray component
+└── LICENSE             # MIT License
 ```
 
 ---
