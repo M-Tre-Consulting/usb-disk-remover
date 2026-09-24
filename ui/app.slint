@@ -41,7 +41,7 @@ export struct I18nStrings {
 }
 
 export component AppTray inherits SystemTrayIcon {
-    icon: @image-url("../icons/tray.png");
+    icon: @image-url("../icons/32x32.png");
     tooltip: "USB Disk Remover";
 
     in property <string> title_open: "Open USB Disk Remover";
@@ -78,12 +78,13 @@ export component AppTray inherits SystemTrayIcon {
 
 component SettingCard inherits Rectangle {
     in property <bool> is_dark: false;
+    in property <bool> is_win11: true;
     in property <string> title;
     in property <string> description;
     in-out property <bool> checked;
 
     height: 60px;
-    border-radius: 8px;
+    border-radius: is_win11 ? 8px : 0px;
     background: is_dark ? #222222 : #f8f8f8;
     border-width: 1px;
     border-color: is_dark ? #333333 : #e6e6e6;
@@ -130,6 +131,7 @@ component DriveCard inherits Rectangle {
     in property <DriveItem> drive;
     in property <bool> is_selected: false;
     in property <bool> is_dark: false;
+    in property <bool> is_win11: true;
     in property <string> fallback_label: "Unlabeled volume";
     in property <string> fallback_device: "Storage device";
 
@@ -138,34 +140,38 @@ component DriveCard inherits Rectangle {
     callback quick_eject();
 
     height: 64px;
-    border-radius: 8px;
+    border-radius: is_win11 ? 8px : 0px;
     
-    // Background and border matching Windows 11 Fluent list item
+    // Background and border matching Windows 11 Fluent or Windows 10 Flat
     background: is_selected 
-        ? (is_dark ? #005fb840 : #0067c018)
+        ? (is_win11 
+            ? (is_dark ? #005fb840 : #0067c018)
+            : (is_dark ? #0078d738 : #0078d720))
         : (touch.has_hover 
             ? (is_dark ? #ffffff0d : #00000008)
             : (is_dark ? #272727 : #ffffff));
 
     border-width: 1px;
     border-color: is_selected
-        ? (is_dark ? #4cc2ff80 : #0067c060)
+        ? (is_win11 
+            ? (is_dark ? #4cc2ff80 : #0067c060)
+            : (is_dark ? #0078d7 : #0078d7))
         : (is_dark ? #333333 : #e6e6e6);
 
-    animate background { duration: 150ms; }
-    animate border-color { duration: 150ms; }
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
 
-    // Windows 11 active indicator bar on the left
+    // Left indicator bar (rounded pill on Win11, flat strip on Win10)
     Rectangle {
         x: 0;
         y: (parent.height - self.height) / 2;
-        width: 3px;
-        height: is_selected ? 24px : 0px;
-        border-radius: 2px;
-        background: is_dark ? #4cc2ff : #0067c0;
+        width: is_win11 ? 3px : 4px;
+        height: is_selected ? (is_win11 ? 24px : parent.height) : 0px;
+        border-radius: is_win11 ? 2px : 0px;
+        background: is_win11 ? (is_dark ? #4cc2ff : #0067c0) : #0078d7;
         opacity: is_selected ? 1.0 : 0.0;
-        animate height { duration: 150ms; easing: ease-out; }
-        animate opacity { duration: 150ms; }
+        animate height { duration: 120ms; easing: ease-out; }
+        animate opacity { duration: 120ms; }
     }
 
     touch := TouchArea {
@@ -188,7 +194,7 @@ component DriveCard inherits Rectangle {
             Rectangle {
                 width: 48px;
                 height: 38px;
-                border-radius: 6px;
+                border-radius: is_win11 ? 6px : 0px;
                 background: is_dark ? #1e1e1e : #f0f0f0;
                 border-width: 1px;
                 border-color: is_dark ? #383838 : #dcdcdc;
@@ -236,7 +242,7 @@ component DriveCard inherits Rectangle {
                     Rectangle {
                         width: 4px;
                         height: 4px;
-                        border-radius: 2px;
+                        border-radius: is_win11 ? 2px : 0px;
                         background: is_dark ? #555555 : #cccccc;
                         y: (parent.height - self.height) / 2;
                     }
@@ -245,7 +251,7 @@ component DriveCard inherits Rectangle {
                         text: root.drive.bus_type;
                         font-size: 11px;
                         font-weight: 600;
-                        color: is_dark ? #4cc2ff : #005fb8;
+                        color: is_win11 ? (is_dark ? #4cc2ff : #005fb8) : #0078d7;
                     }
                 }
             }
@@ -260,7 +266,7 @@ component DriveCard inherits Rectangle {
             Rectangle {
                 width: 32px;
                 height: 32px;
-                border-radius: 5px;
+                border-radius: is_win11 ? 5px : 0px;
                 background: quick_touch.has_hover 
                     ? (is_dark ? #ffffff1a : #00000010) 
                     : transparent;
@@ -292,7 +298,6 @@ export component MainWindow inherits Window {
     preferred-width: 630px;
     preferred-height: 450px;
 
-    in-out property <DriveItem> sample;
     in-out property <[DriveItem]> drives: [];
     in-out property <int> selected_index: -1;
     in-out property <bool> is_loading: false;
@@ -302,6 +307,9 @@ export component MainWindow inherits Window {
     in-out property <string> app_version: "1.0.0";
     in-out property <bool> show_about: false;
     in-out property <bool> show_settings: false;
+
+    // OS detection flag (Windows 11 vs Windows 10)
+    in-out property <bool> is_win11: true;
 
     // Internationalization strings and selection
     in-out property <I18nStrings> t;
@@ -358,7 +366,7 @@ export component MainWindow inherits Window {
                 Rectangle {
                     width: 48px;
                     height: 18px;
-                    border-radius: 9px;
+                    border-radius: root.is_win11 ? 9px : 0px;
                     background: is_dark ? #2d2d2d : #e5e5e5;
                     y: (parent.height - self.height) / 2;
 
@@ -399,7 +407,7 @@ export component MainWindow inherits Window {
         // ── Drives Container ──────────────────────────────────────────────
         Rectangle {
             vertical-stretch: 1;
-            border-radius: 10px;
+            border-radius: root.is_win11 ? 10px : 0px;
             background: is_dark ? #1c1c1c : #fbfbfb;
             border-width: 1px;
             border-color: is_dark ? #2e2e2e : #e6e6e6;
@@ -463,7 +471,10 @@ export component MainWindow inherits Window {
             // Drive list
             if root.drives.length > 0 : ScrollView {
                 VerticalLayout {
-                    padding: 10px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    padding-top: 10px;
+                    padding-bottom: 10px;
                     spacing: 8px;
                     alignment: start;
 
@@ -471,6 +482,7 @@ export component MainWindow inherits Window {
                         drive: drive;
                         is_selected: root.selected_index == index;
                         is_dark: root.is_dark;
+                        is_win11: root.is_win11;
                         fallback_label: root.t.unlabeled_volume;
                         fallback_device: root.t.storage_device;
 
@@ -503,7 +515,7 @@ export component MainWindow inherits Window {
                 Rectangle {
                     width: 8px;
                     height: 8px;
-                    border-radius: 4px;
+                    border-radius: root.is_win11 ? 4px : 0px;
                     y: (parent.height - self.height) / 2;
                     background: root.status_kind == "ok" 
                         ? (is_dark ? #54b054 : #107c41)
@@ -558,11 +570,11 @@ export component MainWindow inherits Window {
             height: 460px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            border-radius: 12px;
+            border-radius: root.is_win11 ? 12px : 0px;
             background: is_dark ? #282828 : #ffffff;
             border-width: 1px;
             border-color: is_dark ? #3d3d3d : #e0e0e0;
-            drop-shadow-blur: 24px;
+            drop-shadow-blur: root.is_win11 ? 24px : 0px;
             drop-shadow-color: #00000044;
 
             TouchArea {}
@@ -595,7 +607,7 @@ export component MainWindow inherits Window {
                     // Language Selector
                     Rectangle {
                         height: 76px;
-                        border-radius: 8px;
+                        border-radius: root.is_win11 ? 8px : 0px;
                         background: is_dark ? #222222 : #f8f8f8;
                         border-width: 1px;
                         border-color: is_dark ? #333333 : #e6e6e6;
@@ -620,15 +632,19 @@ export component MainWindow inherits Window {
                                 alignment: space-between;
 
                                 for lang[idx] in root.available_languages : Rectangle {
-                                    border-radius: 4px;
+                                    border-radius: root.is_win11 ? 4px : 0px;
                                     background: root.selected_language_index == idx 
-                                        ? (is_dark ? #4cc2ff : #0067c0)
+                                        ? (root.is_win11 
+                                            ? (is_dark ? #4cc2ff : #0067c0)
+                                            : #0078d7)
                                         : (lang_touch.has_hover 
                                             ? (is_dark ? #ffffff18 : #00000010)
                                             : (is_dark ? #2e2e2e : #ebebeb));
                                     border-width: 1px;
                                     border-color: root.selected_language_index == idx
-                                        ? (is_dark ? #4cc2ff : #0067c0)
+                                        ? (root.is_win11 
+                                            ? (is_dark ? #4cc2ff : #0067c0)
+                                            : #0078d7)
                                         : (is_dark ? #3d3d3d : #d6d6d6);
 
                                     lang_touch := TouchArea {
@@ -661,6 +677,7 @@ export component MainWindow inherits Window {
 
                     SettingCard {
                         is_dark: root.is_dark;
+                        is_win11: root.is_win11;
                         title: root.t.autostart_title;
                         description: root.t.autostart_desc;
                         checked <=> root.setting_start_with_windows;
@@ -668,6 +685,7 @@ export component MainWindow inherits Window {
 
                     SettingCard {
                         is_dark: root.is_dark;
+                        is_win11: root.is_win11;
                         title: root.t.start_minimized_title;
                         description: root.t.start_minimized_desc;
                         checked <=> root.setting_start_minimized;
@@ -675,6 +693,7 @@ export component MainWindow inherits Window {
 
                     SettingCard {
                         is_dark: root.is_dark;
+                        is_win11: root.is_win11;
                         title: root.t.close_to_tray_title;
                         description: root.t.close_to_tray_desc;
                         checked <=> root.setting_close_to_tray;
@@ -725,11 +744,11 @@ export component MainWindow inherits Window {
             height: 300px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            border-radius: 12px;
+            border-radius: root.is_win11 ? 12px : 0px;
             background: is_dark ? #282828 : #ffffff;
             border-width: 1px;
             border-color: is_dark ? #3d3d3d : #e0e0e0;
-            drop-shadow-blur: 24px;
+            drop-shadow-blur: root.is_win11 ? 24px : 0px;
             drop-shadow-color: #00000044;
 
             TouchArea {}

@@ -18,10 +18,10 @@ use std::sync::{Arc, Mutex};
 slint::include_modules!();
 
 #[cfg(target_os = "windows")]
-fn apply_windows_styling(window: &slint::Window) {
+fn apply_windows_styling(window: &slint::Window, is_win11: bool) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE,
+        DwmSetWindowAttribute, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
     };
 
     let handle = window.window_handle();
@@ -39,12 +39,22 @@ fn apply_windows_styling(window: &slint::Window) {
                 &dark as *const u32 as *const _,
                 std::mem::size_of::<u32>() as u32,
             );
+
+            if is_win11 {
+                let backdrop: u32 = 2; // DWMSBT_MAINWINDOW = 2 (Mica)
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_SYSTEMBACKDROP_TYPE,
+                    &backdrop as *const u32 as *const _,
+                    std::mem::size_of::<u32>() as u32,
+                );
+            }
         }
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn apply_windows_styling(_window: &slint::Window) {}
+fn apply_windows_styling(_window: &slint::Window, _is_win11: bool) {}
 
 fn drive_to_item(drive: &RemovableDrive) -> DriveItem {
     let bus_str = match drive.bus_type {
@@ -170,7 +180,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let main_window = MainWindow::new()?;
     let tray = AppTray::new()?;
 
-    apply_windows_styling(main_window.window());
+    let is_win11 = utils::is_windows_11_or_greater();
+    main_window.set_is_win11(is_win11);
+    apply_windows_styling(main_window.window(), is_win11);
 
     // Set application version from Cargo
     main_window.set_app_version(env!("CARGO_PKG_VERSION").into());
