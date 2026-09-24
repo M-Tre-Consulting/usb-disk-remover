@@ -1,5 +1,7 @@
 #define MyAppName "USB Disk Remover"
+#ifndef MyAppVersion
 #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "m4ce-w1ndu"
 #define MyAppURL "https://github.com/m4ce-w1ndu/usb-disk-remover"
 #define MyAppExeName "usb-disk-remover.exe"

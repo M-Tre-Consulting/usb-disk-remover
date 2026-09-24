@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build & Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: get_version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -match '^v?([0-9]+\.[0-9]+\.[0-9]+.*)$') {
+            $version = $matches[1]
+          } else {
+            $version = "1.0.0"
+          }
+          Write-Output "VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "Building for version: $version"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress
+
+      - name: Build standalone binary
+        run: |
+          cargo build --release
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          iscc "/DMyAppVersion=$env:VERSION" installer\setup.iss
+
+      - name: Prepare portable archive & release assets
+        shell: pwsh
+        run: |
+          # Copy binary with clean versioned name
+          Copy-Item "target\release\usb-disk-remover.exe" -Destination "usb-disk-remover-v$env:VERSION.exe"
+          
+          # Create zip archive for portable use
+          $archiveFiles = @(
+            "target\release\usb-disk-remover.exe",
+            "README.md",
+            "LICENSE"
+          )
+          Compress-Archive -Path $archiveFiles -DestinationPath "usb-disk-remover-v$env:VERSION-windows-x64-portable.zip"
+          
+          # Copy installer with clean versioned name
+          $installer = Get-ChildItem "target\installer\USBDiskRemover-Setup-*.exe" | Select-Object -First 1
+          Copy-Item $installer.FullName -Destination "USBDiskRemover-Setup-v$env:VERSION.exe"
+
+          # Generate SHA256 checksums
+          $filesToHash = @(
+            "usb-disk-remover-v$env:VERSION.exe",
+            "usb-disk-remover-v$env:VERSION-windows-x64-portable.zip",
+            "USBDiskRemover-Setup-v$env:VERSION.exe"
+          )
+          Get-FileHash -Algorithm SHA256 $filesToHash | ForEach-Object {
+            "$($_.Hash.ToLower())  $([System.IO.Path]::GetFileName($_.Path))"
+          } | Out-File -Encoding utf8 "SHA256SUMS.txt"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            usb-disk-remover-v${{ env.VERSION }}.exe
+            usb-disk-remover-v${{ env.VERSION }}-windows-x64-portable.zip
+            USBDiskRemover-Setup-v${{ env.VERSION }}.exe
+            SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
