@@ -12,37 +12,45 @@ A lightweight, portable Windows utility for safely ejecting removable USB and Fi
 - **Multi-Partition Support**: Handles multi-partition devices correctly by identifying and dismounting all sibling volumes before ejecting the parent device.
 - **Windows 11 Fluent UI**: Native Windows 11 look and feel with automatic Dark/Light mode support, immersive dark title bar, and Fluent styling.
 - **Ultra-Lightweight & Fast**: Zero Chromium/WebView2 overhead. Starts in <40 ms and uses ~15 MB of RAM.
+- **Internationalization (i18n)**: Fully translated into 6 languages with live switching:
+  - 🇬🇧 English
+  - 🇮🇹 Italiano
+  - 🇩🇪 Deutsch
+  - 🇫🇷 Français
+  - 🇸🇦 العربية
+  - 🇷🇺 Русский
 - **Settings & Autostart**: In-app Settings page to toggle:
+  - UI Language selection.
   - Automatic startup with Windows (`HKCU\...\Run`).
   - Start minimized directly to the System Tray (`--minimized`).
   - Minimize to tray when clicking the close button (**✕**).
 - **System Tray Integration**: Background resident with an interactive context menu (Open, Settings, About, Quit).
-- **Portable or Installable**: Available both as a portable single `.exe` and as a clean Windows Setup installer.
+- **Portable or System-Wide Installer**: Available both as a portable single `.exe` and as a clean 64-bit Windows Setup installer for `Program Files`.
 
 ---
 
 ## 💻 Requirements
 
 - **Operating System**: Windows 10 or Windows 11 (64-bit)
-- **Privileges**: Standard user (no administrator rights required for normal removable drive operations)
+- **Privileges**: Standard user for portable use; administrator rights required only when running the system-wide installer.
 
 ---
 
 ## 📦 Installation & Download
 
-### Option 1: Windows Setup Installer
-You can generate or run the Inno Setup installer:
+### Option 1: Windows Setup Installer (System-Wide)
+Run or compile the Inno Setup installer:
 ```text
 target/installer/USBDiskRemover-Setup-1.0.0.exe
 ```
 Features of the installer:
-- Installs to user directory without requiring administrator privileges.
+- Installs system-wide to `C:\Program Files\USB Disk Remover`.
+- Multi-language installer support (English, Italian, German, French, Arabic, Russian).
 - Adds Start Menu and optional Desktop shortcuts.
-- Optional automatic startup with Windows.
 - Clean uninstaller registered in Windows Settings (*Apps & features*).
 
 ### Option 2: Standalone Portable Binary
-Simply copy `usb-disk-remover.exe` anywhere (even on a USB flash drive) and launch it.
+Simply copy `usb-disk-remover.exe` anywhere (even on a USB flash drive) and launch it directly.
 
 ---
 
@@ -76,9 +84,9 @@ Simply copy `usb-disk-remover.exe` anywhere (even on a USB flash drive) and laun
 
 1. Launch `usb-disk-remover.exe`.
 2. All connected removable drives will appear in the card list.
-3. Select an entry and click **Rimuovi in sicurezza** (Safely Remove), or **double-click** any drive row to eject it immediately.
-4. Click **Impostazioni** (Settings) in the top toolbar to configure automatic startup and tray behavior.
-5. Closing the window with the **✕** button minimizes the application to the Windows System Tray (configurable). Click the tray icon to restore the window, or right-click for the context menu.
+3. Select an entry and click **Safely Remove**, or **double-click** any drive row to eject it immediately.
+4. Click **Settings** in the top toolbar to change the language or configure automatic startup and tray behavior.
+5. Closing the window with the **✕** button minimizes the application to the Windows System Tray (configurable in Settings). Click the tray icon to restore the window, or right-click for the context menu.
 
 ### Command-Line Arguments
 
@@ -103,11 +111,12 @@ usb-disk-remover/
 ├── build.rs            # Slint UI compiler and Windows PE icon embedding
 ├── icons/              # Application & System Tray icons
 ├── installer/
-│   └── setup.iss       # Inno Setup Windows installer script
+│   └── setup.iss       # Inno Setup Windows installer script (6 languages, Program Files)
 ├── src/
-│   ├── main.rs         # Application lifecycle, tray icon, settings & async worker threads
+│   ├── main.rs         # Application lifecycle, tray icon, language dispatch & worker threads
 │   ├── drives.rs       # Drive enumeration & bus property queries (Win32 IOCTL)
 │   ├── eject.rs        # Two-phase volume locking, dismount & PnP device ejection
+│   ├── i18n.rs         # Internationalization dictionary (en, it, de, fr, ar, ru)
 │   ├── settings.rs     # App settings persistence and Windows autostart Registry integration
 │   └── utils.rs        # String & bit manipulation helpers
 ├── ui/
