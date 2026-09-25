@@ -4,6 +4,7 @@ mod drives;
 mod eject;
 mod i18n;
 mod settings;
+mod single_instance;
 mod utils;
 
 use drives::{enumerate_drives, BusType, RemovableDrive};
@@ -177,8 +178,18 @@ fn update_tray_strings(tray: &AppTray, strings: &I18nStrings) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start_minimized = std::env::args().any(|arg| arg == "--minimized");
+    let instance_guard = match single_instance::acquire_single_instance(!start_minimized) {
+        single_instance::SingleInstanceStatus::FirstInstance(guard) => guard,
+        single_instance::SingleInstanceStatus::AlreadyRunning => {
+            return Ok(());
+        }
+    };
+
     let main_window = MainWindow::new()?;
     let tray = AppTray::new()?;
+
+    instance_guard.listen_for_show_requests(main_window.as_weak());
 
     let is_win11 = utils::is_windows_11_or_greater();
     main_window.set_is_win11(is_win11);
@@ -231,6 +242,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let _ = win.window().hide();
             } else {
                 let _ = win.window().show();
+                single_instance::bring_window_to_front(win.window());
             }
         }
     });
@@ -241,6 +253,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             win.set_show_settings(true);
             win.set_show_about(false);
             let _ = win.window().show();
+            single_instance::bring_window_to_front(win.window());
         }
     });
 
@@ -250,6 +263,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             win.set_show_about(true);
             win.set_show_settings(false);
             let _ = win.window().show();
+            single_instance::bring_window_to_front(win.window());
         }
     });
 
@@ -383,8 +397,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::clone(&current_lang),
     );
 
-    // Check if launched with --minimized flag
-    let start_minimized = std::env::args().any(|arg| arg == "--minimized");
     if !start_minimized {
         main_window.show()?;
     }

@@ -25,6 +25,7 @@ A lightweight, portable Windows utility for safely ejecting removable USB and Fi
   - Start minimized directly to the System Tray (`--minimized`).
   - Minimize to tray when clicking the close button (**✕**).
 - **System Tray Integration**: Background resident with an interactive context menu (Open, Settings, About, Quit).
+- **Single Instance Enforcement**: Prevents duplicate instances. Launching the app while already running silently brings the existing window to the foreground.
 - **Portable or System-Wide Installer**: Available both as a portable single `.exe` and as a clean 64-bit Windows Setup installer for `Program Files`.
 
 ---
